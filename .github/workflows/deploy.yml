@@ -43,8 +43,6 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
     - name: Deploy SAM stack
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
       run: |
         sam deploy \
           --template-file template.yaml \
@@ -54,7 +52,7 @@ jobs:
           --parameter-overrides \
             "S3BucketName=sant-sumun-dev" \
             "LambdaProcessingFunctionName=sumun-preprocess-columns" \
-          --image-repositories BackendFunction=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }} \
+          --resolve-image-repos \
           --no-confirm-changeset \
           --no-fail-on-empty-changeset
 

@@ -1,8 +1,14 @@
 import axios from 'axios';
 
 // Base URL - use environment variable in production, proxy in development
+// For production builds, VITE_API_URL MUST be set during build time
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
-  (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
+  (import.meta.env.DEV ? 'http://localhost:8000/api' : '');
+
+// Validate API URL in production
+if (!import.meta.env.DEV && !API_BASE_URL) {
+  console.error('VITE_API_URL is not set! API calls will fail.');
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,

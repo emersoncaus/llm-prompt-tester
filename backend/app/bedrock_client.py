@@ -16,12 +16,12 @@ class BedrockClient:
             name="Claude 3.5 Sonnet v2",
             description="Most intelligent model, best for complex tasks (cross-region inference)"
         ),
-        ModelInfo(
-            model_id="anthropic.claude-3-5-sonnet-20240620-v1:0",
-            provider="Anthropic",
-            name="Claude 3.5 Sonnet v1",
-            description="Previous version of Claude 3.5 Sonnet"
-        ),
+        # ModelInfo(
+        #     model_id="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        #     provider="Anthropic",
+        #     name="Claude 3.5 Sonnet v1",
+        #     description="Previous version of Claude 3.5 Sonnet"
+        # ),
     ]
     
     def __init__(self):

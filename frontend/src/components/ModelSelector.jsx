@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiService } from '../services/api';
 
 export default function ModelSelector({ selectedModel, onModelChange, disabled }) {
   const [models, setModels] = useState([]);
@@ -12,9 +13,7 @@ export default function ModelSelector({ selectedModel, onModelChange, disabled }
   const fetchModels = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/models');
-      if (!response.ok) throw new Error('Failed to fetch models');
-      const data = await response.json();
+      const data = await apiService.getModels();
       setModels(data);
       
       // Set first model as default if none selected

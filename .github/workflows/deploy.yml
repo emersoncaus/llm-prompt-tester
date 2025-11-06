@@ -42,6 +42,29 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
+    - name: Delete stack if in ROLLBACK_COMPLETE state
+      run: |
+        STACK_STATUS=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --region ${{ env.AWS_REGION }} \
+          --query 'Stacks[0].StackStatus' \
+          --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+        
+        if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ]; then
+          echo "Stack is in ROLLBACK_COMPLETE state. Deleting..."
+          aws cloudformation delete-stack \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }}
+          
+          echo "Waiting for stack deletion..."
+          aws cloudformation wait stack-delete-complete \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }}
+          echo "Stack deleted successfully"
+        else
+          echo "Stack status: $STACK_STATUS"
+        fi
+
     - name: Deploy SAM stack
       run: |
         sam deploy \

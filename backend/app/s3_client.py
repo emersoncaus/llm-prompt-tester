@@ -2,36 +2,17 @@ import boto3
 from typing import BinaryIO
 from datetime import datetime
 from botocore.exceptions import ClientError
-from .config import get_settings
 
 
 class S3Client:
     """AWS S3 client wrapper"""
     
     def __init__(self):
-        settings = get_settings()
-        
-        # Initialize boto3 client
-        # When running in Lambda, boto3 automatically uses the execution role
-        # When running locally, it will use profile or credentials if specified
-        session_kwargs = {"region_name": settings.aws_region}
-        
-        # Only use profile/keys if explicitly configured (for local development)
-        if settings.aws_profile:
-            session_kwargs["profile_name"] = settings.aws_profile
-        elif settings.aws_access_key_id and settings.aws_secret_access_key:
-            session_kwargs["aws_access_key_id"] = settings.aws_access_key_id
-            session_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
-        
-        # Create session - if no credentials specified, boto3 will use default credential chain
-        # In Lambda, this automatically uses the execution role
-        if len(session_kwargs) == 1:  # Only region specified
-            # Use default credential chain (execution role in Lambda)
-            self.client = boto3.client("s3", region_name=settings.aws_region)
-        else:
-            session = boto3.Session(**session_kwargs)
-            self.client = session.client("s3")
-        self.settings = settings
+        # Hardcoded configuration for simplicity
+        # In Lambda, boto3 automatically uses the execution role
+        self.client = boto3.client("s3", region_name="us-east-1")
+        self.bucket_name = "sant-sumun-dev"
+        self.upload_folder = "test/data"
     
     def upload_file(
         self,
@@ -50,17 +31,17 @@ class S3Client:
         Returns:
             Dict with upload information (bucket, key, url)
         """
-        if not self.settings.s3_bucket_name:
-            raise ValueError("S3_BUCKET_NAME not configured in environment variables")
+        if not self.bucket_name:
+            raise ValueError("S3 bucket name not configured")
         
         try:
             # Generate unique filename with timestamp
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            s3_key = f"{self.settings.s3_upload_folder}/{timestamp}_{filename}"
+            s3_key = f"{self.upload_folder}/{timestamp}_{filename}"
             
             # Upload to S3
             self.client.put_object(
-                Bucket=self.settings.s3_bucket_name,
+                Bucket=self.bucket_name,
                 Key=s3_key,
                 Body=file_content,
                 ContentType=content_type,
@@ -71,10 +52,10 @@ class S3Client:
             )
             
             # Generate URL (note: this is a simple URL, for signed URLs use generate_presigned_url)
-            url = f"https://{self.settings.s3_bucket_name}.s3.{self.settings.aws_region}.amazonaws.com/{s3_key}"
+            url = f"https://{self.bucket_name}.s3.us-east-1.amazonaws.com/{s3_key}"
             
             return {
-                "bucket": self.settings.s3_bucket_name,
+                "bucket": self.bucket_name,
                 "key": s3_key,
                 "url": url,
                 "filename": filename,
@@ -103,7 +84,7 @@ class S3Client:
             url = self.client.generate_presigned_url(
                 "get_object",
                 Params={
-                    "Bucket": self.settings.s3_bucket_name,
+                    "Bucket": self.bucket_name,
                     "Key": s3_key
                 },
                 ExpiresIn=expiration
@@ -123,11 +104,11 @@ class S3Client:
             List of file information dicts
         """
         try:
-            list_params = {"Bucket": self.settings.s3_bucket_name}
+            list_params = {"Bucket": self.bucket_name}
             if prefix:
                 list_params["Prefix"] = prefix
             else:
-                list_params["Prefix"] = self.settings.s3_upload_folder
+                list_params["Prefix"] = self.upload_folder
             
             response = self.client.list_objects_v2(**list_params)
             

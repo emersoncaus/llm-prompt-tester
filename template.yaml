@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: LLM Prompt Tester - Serverless Application
+
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 1024
+    Environment:
+      Variables:
+        AWS_REGION_NAME: !Ref AWS::Region
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: Nome do bucket S3 para upload de arquivos CSV
+    Default: llm-prompt-tester-uploads
+  
+  LambdaProcessingFunctionName:
+    Type: String
+    Description: Nome da função Lambda de processamento CSV
+    Default: sua-funcao-lambda-aqui
+
+Resources:
+  # API Gateway
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+
+  # Backend Lambda Function
+  BackendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sumun-llm-teste-backend:latest
+      Events:
+        ProxyApiRoot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /
+            Method: ANY
+        ProxyApiGreedy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref S3BucketName
+          LAMBDA_FUNCTION_NAME: !Ref LambdaProcessingFunctionName
+      Policies:
+        - AmazonBedrockFullAccess
+        - S3CrudPolicy:
+            BucketName: !Ref S3BucketName
+        - LambdaInvokePolicy:
+            FunctionName: !Ref LambdaProcessingFunctionName
+      Timeout: 300
+
+  # S3 Bucket for Frontend
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub llm-prompt-tester-frontend-${AWS::AccountId}
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # S3 Bucket Policy for Frontend
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub ${FrontendBucket.Arn}/*
+
+  # CloudFront Distribution
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        PriceClass: PriceClass_100
+
+Outputs:
+  ApiUrl:
+    Description: URL da API Gateway
+    Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod
+  
+  FrontendUrl:
+    Description: URL do CloudFront (Frontend)
+    Value: !GetAtt FrontendDistribution.DomainName
+  
+  FrontendBucketName:
+    Description: Nome do bucket S3 do frontend
+    Value: !Ref FrontendBucket

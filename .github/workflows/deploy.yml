@@ -1,0 +1,144 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Permite executar manualmente
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: sumun-llm-teste-backend
+  STACK_NAME: sumun-prompt-tester-stack
+
+jobs:
+  deploy-backend:
+    name: Build and Deploy Backend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push Docker image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        cd backend
+        docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+    - name: Deploy SAM stack
+      run: |
+        sam deploy \
+          --template-file template.yaml \
+          --stack-name ${{ env.STACK_NAME }} \
+          --capabilities CAPABILITY_IAM \
+          --region ${{ env.AWS_REGION }} \
+          --parameter-overrides \
+            "S3BucketName=sant-sumun-dev" \
+            "LambdaProcessingFunctionName=sumun-preprocess-columns" \
+          --no-confirm-changeset \
+          --no-fail-on-empty-changeset
+
+    - name: Get API URL
+      id: get-outputs
+      run: |
+        API_URL=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --region ${{ env.AWS_REGION }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
+          --output text)
+        echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+        echo "API URL: $API_URL"
+
+    outputs:
+      api-url: ${{ steps.get-outputs.outputs.api_url }}
+
+  deploy-frontend:
+    name: Build and Deploy Frontend
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Build frontend
+      env:
+        VITE_API_URL: ${{ needs.deploy-backend.outputs.api-url }}
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+
+    - name: Get S3 bucket name
+      id: get-bucket
+      run: |
+        BUCKET_NAME=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --region ${{ env.AWS_REGION }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
+          --output text)
+        echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+
+    - name: Deploy to S3
+      run: |
+        cd frontend
+        aws s3 sync dist/ s3://${{ steps.get-bucket.outputs.bucket_name }}/ --delete
+
+    - name: Get CloudFront distribution ID
+      id: get-distribution
+      run: |
+        DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --region ${{ env.AWS_REGION }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+          --output text)
+        echo "distribution_id=$DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+
+    - name: Invalidate CloudFront cache
+      if: steps.get-distribution.outputs.distribution_id != ''
+      run: |
+        aws cloudfront create-invalidation \
+          --distribution-id ${{ steps.get-distribution.outputs.distribution_id }} \
+          --paths "/*"
+
+    - name: Display URLs
+      run: |
+        FRONTEND_URL=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --region ${{ env.AWS_REGION }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`FrontendUrl`].OutputValue' \
+          --output text)
+        echo "🚀 Deployment complete!"
+        echo "📱 Frontend URL: $FRONTEND_URL"
+        echo "🔗 API URL: ${{ needs.deploy-backend.outputs.api-url }}"

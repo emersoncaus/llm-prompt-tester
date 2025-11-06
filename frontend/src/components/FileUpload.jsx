@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiService } from '../services/api';
 
 export default function FileUpload({ onUploadSuccess, onProcessingUpdate }) {
   const [file, setFile] = useState(null);
@@ -127,17 +128,7 @@ export default function FileUpload({ onUploadSuccess, onProcessingUpdate }) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const uploadResponse = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        throw new Error(errorData.detail || 'Erro ao fazer upload');
-      }
-
-      const uploadData = await uploadResponse.json();
+      const uploadData = await apiService.uploadFile(formData);
       setSuccess(`Arquivo "${uploadData.filename}" enviado ao S3!`);
 
       // 2. Chamar Lambda para processar o arquivo
@@ -149,20 +140,7 @@ export default function FileUpload({ onUploadSuccess, onProcessingUpdate }) {
         }
       };
 
-      const processResponse = await fetch('/api/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(lambdaPayload),
-      });
-
-      if (!processResponse.ok) {
-        const errorData = await processResponse.json();
-        throw new Error(errorData.detail || 'Erro ao processar arquivo');
-      }
-
-      const processData = await processResponse.json();
+      const processData = await apiService.processFile(lambdaPayload);
       
       // Exibir resultado do processamento
       // O backend já retorna apenas o 'data' do Lambda

@@ -33,6 +33,22 @@ export const apiService = {
     const response = await api.post('/prompt', promptData);
     return response.data;
   },
+
+  // Upload CSV file
+  async uploadFile(formData) {
+    const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Process CSV file
+  async processFile(payload) {
+    const response = await api.post('/process', payload);
+    return response.data;
+  },
 };
 
 export default api;

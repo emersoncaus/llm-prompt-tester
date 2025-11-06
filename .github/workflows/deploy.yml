@@ -137,7 +137,28 @@ jobs:
     - name: Deploy to S3
       run: |
         cd frontend
-        aws s3 sync dist/ s3://${{ steps.get-bucket.outputs.bucket_name }}/ --delete
+        # Upload HTML files
+        aws s3 sync dist/ s3://${{ steps.get-bucket.outputs.bucket_name }}/ \
+          --exclude "*" --include "*.html" \
+          --content-type "text/html" \
+          --cache-control "no-cache" \
+          --delete
+        
+        # Upload JavaScript files
+        aws s3 sync dist/ s3://${{ steps.get-bucket.outputs.bucket_name }}/ \
+          --exclude "*" --include "*.js" \
+          --content-type "application/javascript" \
+          --cache-control "max-age=31536000"
+        
+        # Upload CSS files
+        aws s3 sync dist/ s3://${{ steps.get-bucket.outputs.bucket_name }}/ \
+          --exclude "*" --include "*.css" \
+          --content-type "text/css" \
+          --cache-control "max-age=31536000"
+        
+        # Upload other files (images, fonts, etc)
+        aws s3 sync dist/ s3://${{ steps.get-bucket.outputs.bucket_name }}/ \
+          --exclude "*.html" --exclude "*.js" --exclude "*.css"
 
     - name: Get CloudFront distribution ID
       id: get-distribution

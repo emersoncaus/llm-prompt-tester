@@ -1,6 +1,6 @@
 # 🤖 LLM Prompt Tester - AWS Bedrock
 
-Aplicação web para testar prompts com Claude 3.5 Sonnet v2 do AWS Bedrock.
+Aplicação web para testar prompts com Claude 3.5 Sonnet v2 do AWS Bedrock - Deployed via GitHub Actions.
 
 ## 🎯 Funcionalidades
 

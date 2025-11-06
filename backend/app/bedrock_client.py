@@ -23,17 +23,25 @@ class BedrockClient:
         settings = get_settings()
         
         # Initialize boto3 client
+        # When running in Lambda, boto3 automatically uses the execution role
+        # When running locally, it will use profile or credentials if specified
         session_kwargs = {"region_name": settings.aws_region}
         
-        # Use profile if specified, otherwise use keys
+        # Only use profile/keys if explicitly configured (for local development)
         if settings.aws_profile:
             session_kwargs["profile_name"] = settings.aws_profile
         elif settings.aws_access_key_id and settings.aws_secret_access_key:
             session_kwargs["aws_access_key_id"] = settings.aws_access_key_id
             session_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
         
-        session = boto3.Session(**session_kwargs)
-        self.client = session.client("bedrock-runtime")
+        # Create session - if no credentials specified, boto3 will use default credential chain
+        # In Lambda, this automatically uses the execution role
+        if len(session_kwargs) == 1:  # Only region specified
+            # Use default credential chain (execution role in Lambda)
+            self.client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+        else:
+            session = boto3.Session(**session_kwargs)
+            self.client = session.client("bedrock-runtime")
     
     def get_available_models(self) -> List[ModelInfo]:
         """Get list of available models"""

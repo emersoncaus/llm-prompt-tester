@@ -7,12 +7,22 @@ class LambdaClient:
     
     def __init__(self):
         settings = get_settings()
-        self.lambda_client = boto3.client(
-            'lambda',
-            region_name=settings.aws_region,
-            aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key
-        )
+        
+        # When running in Lambda, boto3 automatically uses the execution role
+        # When running locally, it will use credentials if specified
+        if settings.aws_access_key_id and settings.aws_secret_access_key:
+            self.lambda_client = boto3.client(
+                'lambda',
+                region_name=settings.aws_region,
+                aws_access_key_id=settings.aws_access_key_id,
+                aws_secret_access_key=settings.aws_secret_access_key
+            )
+        else:
+            # Use default credential chain (execution role in Lambda)
+            self.lambda_client = boto3.client(
+                'lambda',
+                region_name=settings.aws_region
+            )
         self.function_name = settings.lambda_function_name
     
     def invoke_processing(self, csv_key: str, target: str, columns: list) -> dict:

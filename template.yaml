@@ -61,6 +61,13 @@ Resources:
             BucketName: !Ref S3BucketName
         - LambdaInvokePolicy:
             FunctionName: !Ref LambdaProcessingFunctionName
+        - Statement:
+          - Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+            Resource: 
+              - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/*'
       Timeout: 300
 
   # S3 Bucket for Frontend

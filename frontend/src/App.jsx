@@ -4,12 +4,12 @@ import ParametersPanel from './components/ParametersPanel';
 import PromptInput from './components/PromptInput';
 import ResponseViewer from './components/ResponseViewer';
 import HistoryPanel from './components/HistoryPanel';
-import FileUpload from './components/FileUpload';
 import { apiService } from './services/api';
 
 function App() {
   // State for prompt and parameters
   const [prompt, setPrompt] = useState('');
+  const [context, setContext] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2048);
@@ -23,39 +23,19 @@ function App() {
   // State for history
   const [history, setHistory] = useState([]);
 
-  // State for processing result from FileUpload
-  const [processingResult, setProcessingResult] = useState(null);
-  const [includeInPrompt, setIncludeInPrompt] = useState(false);
-
   // Handle prompt submission
   const handleSubmit = async () => {
     if (!prompt.trim() || !selectedModel) return;
-
-    console.log('App - Estados no handleSubmit:', { 
-      processingResult: !!processingResult, 
-      includeInPrompt,
-      promptLength: prompt.length 
-    });
 
     setLoading(true);
     setError(null);
 
     try {
-      // Concatenar o texto do processamento se o checkbox estiver marcado
+      // Concatenar o contexto ao prompt se fornecido
       let finalPrompt = prompt;
-      if (includeInPrompt && processingResult) {
-        finalPrompt = `${prompt}\n\n---\n\n${processingResult}`;
+      if (context.trim()) {
+        finalPrompt = `${prompt}\n\n---\n\nContexto:\n${context}`;
       }
-
-      // LOG - Mostrar o que está sendo enviado
-      console.log('========== ENVIANDO PARA BEDROCK ==========');
-      console.log('Prompt original:', prompt);
-      console.log('Incluir processamento?', includeInPrompt);
-      console.log('Resultado do processamento:', processingResult ? 'SIM' : 'NÃO');
-      console.log('---');
-      console.log('PROMPT FINAL:');
-      console.log(finalPrompt);
-      console.log('===========================================');
 
       const result = await apiService.sendPrompt({
         prompt: finalPrompt,
@@ -91,19 +71,6 @@ function App() {
     if (window.confirm('Deseja realmente limpar todo o histórico?')) {
       setHistory([]);
     }
-  };
-
-  // Handle file upload success
-  const handleUploadSuccess = (uploadData) => {
-    console.log('File uploaded:', uploadData);
-    // You can add additional logic here, like refreshing a file list
-  };
-
-  // Handle processing result update from FileUpload
-  const handleProcessingUpdate = (result, include) => {
-    console.log('App - handleProcessingUpdate chamado:', { result: !!result, include });
-    setProcessingResult(result);
-    setIncludeInPrompt(include);
   };
 
   return (
@@ -171,16 +138,12 @@ function App() {
 
           {/* Right Column - Prompt and Response */}
           <div className="lg:col-span-3 space-y-6">
-            {/* File Upload */}
-            <FileUpload 
-              onUploadSuccess={handleUploadSuccess}
-              onProcessingUpdate={handleProcessingUpdate}
-            />
-
             {/* Prompt Input */}
             <PromptInput
               value={prompt}
               onChange={setPrompt}
+              contextValue={context}
+              onContextChange={setContext}
               onSubmit={handleSubmit}
               loading={loading}
               disabled={!selectedModel}

@@ -1,6 +1,8 @@
 export default function PromptInput({ 
   value, 
-  onChange, 
+  onChange,
+  contextValue,
+  onContextChange,
   onSubmit, 
   loading, 
   disabled 
@@ -24,13 +26,29 @@ export default function PromptInput({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled || loading}
         placeholder="Aplique o modelo de prompt aqui..."
-        rows={16}
+        rows={10}
         className="input resize-none disabled:bg-gray-100"
       />
       
+      <div className="mt-4">
+        <label htmlFor="context-input" className="label">
+          Dados de Contexto (opcional)
+        </label>
+        <textarea
+          id="context-input"
+          value={contextValue}
+          onChange={(e) => onContextChange(e.target.value)}
+          disabled={disabled || loading}
+          placeholder="Cole aqui dados adicionais de contexto para a LLM (ex: resultados de processamento, dados CSV, informações relevantes)..."
+          rows={8}
+          className="input resize-none disabled:bg-gray-100"
+        />
+      </div>
+      
       <div className="flex items-center justify-between mt-4">
         <span className="text-sm text-gray-500">
-          {value.length} caracteres
+          Prompt: {value.length} caracteres
+          {contextValue && ` | Contexto: ${contextValue.length} caracteres`}
         </span>
         
         <button
